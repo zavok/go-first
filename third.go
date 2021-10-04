@@ -1,6 +1,6 @@
 package main
 
-const third string = `
+var third string = `
 : r 1 exit
 
 : ]
@@ -69,6 +69,91 @@ main
 
 : dec dup @ 1 - swap ! ;
 
+: tor
+  r @ @
+  swap
+  r @ !
+  r @ 1 + r !
+  r @ !
+;
 
+: fromr
+  r @ @
+  r @ 1 - r !
+  r @ @
+  swap
+  r @ !
+;
+
+: tail fromr fromr drop tor ;
+
+: minus 0 swap 0 ;
+
+: bnot 1 swap - ;
+
+: < - <0 ;
+
+: logical
+  dup
+  0 <
+  swap minus
+  0 <
+  +
+;
+
+: not logical bnot ;
+
+: = - not ;
+
+: branch
+  r @
+  @
+  @
+  r @ @
+  +
+  r + !
+;
+
+: computebranch 1 - * 1 + ;
+
+: notbranch
+  not
+  r @ @ @
+  computebranch
+  r @ @ +
+  r @ !
+;
+
+: here h @ ;
+
+: if immediate
+  ' notbranch ,
+  here
+  0 ,
+;
+
+: then immediate
+  dup
+  here
+  swap -
+  swap !
+;
+
+: find-)
+  key
+  ')' =
+  not if
+    tail find -)
+  then
+;
+
+: ( immediate
+  find-)
+;
+
+(we should be able to do FORTH-style comments now )
+
+( now that we've got comments, we can comment the rest of the code
+  in a legitimate [self parsing] fashion. Note that you can't
+  nest parentheses... )
 `
-

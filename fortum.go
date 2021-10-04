@@ -149,6 +149,7 @@ func (F *First) define() error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("[%s]", s)
 	F.strings = append(F.strings, s)
 	id := len(F.strings) - 1
 	F.Compile(F.lwp, id, -2)
@@ -162,6 +163,7 @@ func (F *First) _read() error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("(%s)", s)
 	wp := F.findWord(s)
 	if wp != 0 {
 		err = F.rpush(F.pc)
