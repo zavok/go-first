@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-const rsp int = 0
-const dep int = 1
+const rsp int = 1
+const dep int = 0
 
 type Mem struct {
 	data []int
@@ -84,7 +84,7 @@ func NewFirst() (*First, error) {
 		nil,
 	}
 	first.mem.Store(dep, 4096)
-	first.mem.Store(rsp, 4)
+	first.mem.Store(rsp, 10)
 	first.in = strings.NewReader(
 		"halt : immediate")
 	for i := 0; i < 3; i++ {
@@ -127,7 +127,7 @@ func (F *First) rpush(val int) (error) {
 }
 
 func (F *First) rpop() (int, error) {
-	if F.mem.Fetch(rsp) <= 4 {
+	if F.mem.Fetch(rsp) <= 10 {
 		return 0, fmt.Errorf("rstack is empty")
 	}
 	F.mem.data[rsp]--
@@ -271,8 +271,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	var code string = ": L immediate exit L"
-	err = first.Run(strings.NewReader(code))
+	err = first.Run(strings.NewReader(third))
 	if err != nil {
 		fmt.Println(err)
 	} else {
