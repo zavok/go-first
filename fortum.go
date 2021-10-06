@@ -9,8 +9,15 @@ import (
 	"strings"
 )
 
-const rsp int = 1
-const dep int = 0
+const (
+	rsp int = 1
+	dep int = 0
+	
+	progstart = 100
+	rstackstart = 5
+)
+
+var laswor string
 
 type Mem struct {
 	data []int
@@ -22,11 +29,11 @@ func NewMem() *Mem {
 	return mem
 }
 
-func (m *Mem) Fetch(addr int) int {
-	if addr >= len(m.data) {
-		return 0
+func (m *Mem) Fetch(addr int) (int, error) {
+	if (addr >= len(m.data)) || (addr < 0) {
+		return 0, fmt.Errorf("memfetch: addr %d out of bonds", addr)
 	}
-	return m.data[addr]
+	return m.data[addr], nil
 }
 
 func (m *Mem) Store(addr, val int) {
@@ -43,7 +50,7 @@ type Stack struct {
 
 func NewStack() *Stack {
 	stack := new(Stack)
-	stack.data = make([]int, 0)
+	stack.data = make([]int, 1)
 	return stack
 }
 
@@ -70,10 +77,11 @@ type First struct {
 	strings []string
 	pc, lwp int
 	run bool
-	in io.Reader
+	in *bufio.Reader
 }
 
 func NewFirst() (*First, error) {
+	const builtins string = "halt : immediate"
 	var first = new(First)
 	*first = First{
 		NewStack(),
@@ -83,34 +91,38 @@ func NewFirst() (*First, error) {
 		true,
 		nil,
 	}
-	first.mem.Store(dep, 4096)
-	first.mem.Store(rsp, 10)
-	first.in = strings.NewReader(
-		"halt : immediate")
+	first.mem.Store(dep, progstart)
+	first.mem.Store(rsp, rstackstart)
+	first.in = bufio.NewReader(strings.NewReader(builtins))
 	for i := 0; i < 3; i++ {
 		first.define()
-		first.mem.Store(first.mem.Fetch(dep) - 1, -3)
+		first.mem.Store(first.mem.data[dep] - 1, -3)
 		first.Compile(i, 10)
 	}
-	first.in = strings.NewReader(
-		"_read @ ! - * / <0 exit echo key _pick _loop")
+	first.in = bufio.NewReader(strings.NewReader(
+		"_read @ ! - * / <0 exit echo key _pick _loop"))
 	for i:=3 ; i < 14; i++ {
 		first.define()
-		first.mem.Store(first.mem.Fetch(dep) - 1, i)
+		first.mem.Store(first.mem.data[dep] - 1, i)
 	}
 
-	// 4149 should be a pointer to exit as it is defined here
-
 	first.define();
-	first.mem.Store(first.mem.Fetch(dep) -1, -3)
+	first.mem.Store(first.mem.data[dep] -1, -3)
 	first.Compile(3, first.lwp + 3)
 	first.pc = first.lwp + 3
 	return first, nil
 }
 
 func (F *First) findWord(s string) int {
-	for wp := F.lwp; wp != 0; wp = F.mem.Fetch(wp) {
-		id := F.mem.Fetch(wp + 1)
+	var err error
+	for wp := F.lwp; wp != 0; wp, err = F.mem.Fetch(wp) {
+		if err != nil {
+			return 0
+		}
+		id, err := F.mem.Fetch(wp + 1)
+		if err != nil {
+			return 0
+		}
 		if F.strings[id] == s {
 			return wp
 		}
@@ -119,38 +131,37 @@ func (F *First) findWord(s string) int {
 }
 
 func (F *First) rpush(val int) (error) {
-	if F.mem.Fetch(rsp) >= 4096 {
+	if F.mem.data[rsp] >= progstart {
 		return fmt.Errorf("rstack is full")
 	}
 	F.mem.data[rsp]++	
-	F.mem.Store(F.mem.Fetch(rsp), val)
+	F.mem.Store(F.mem.data[rsp], val)
 	return nil
 }
 
 func (F *First) rpop() (int, error) {
-	if F.mem.Fetch(rsp) <= 10 {
+	if F.mem.data[rsp] <= rstackstart {
 		return 0, fmt.Errorf("rstack is empty")
 	}
-	x := F.mem.Fetch(F.mem.Fetch(rsp))
+	x, err := F.mem.Fetch(F.mem.data[rsp])
 	F.mem.data[rsp]--
-	return x, nil
+	return x, err
 }
 
 func (F *First) Compile(vals ...int) {
 	for _, val := range vals {
-		F.mem.Store(F.mem.Fetch(dep), val)
+		F.mem.Store(F.mem.data[dep], val)
 		F.mem.data[dep]++
 	}
 }
 
 func (F *First) define() error {
 	var s string
-	nwp := F.mem.Fetch(dep)
+	nwp := F.mem.data[dep]
 	_, err := fmt.Fscan(F.in, &s)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("<%s> ", s)
 	F.strings = append(F.strings, s)
 	id := len(F.strings) - 1
 	F.Compile(F.lwp, id, -2)
@@ -167,22 +178,21 @@ func (F *First) _read() error {
 	if _, err = fmt.Fscan(F.in, &s); err != nil {
 		return err
 	}
-	fmt.Printf("%s ", s)
 	switch s {
 	case "S":
 		fmt.Println(F.stack.data)
 		return nil
 	case "R":
-		fmt.Println(F.mem.data[4:F.mem.Fetch(rsp)])
+		fmt.Println(F.mem.data[4:F.mem.data[rsp]])
 		return nil
 	case "M":
-		fmt.Println(F.mem.data[4096:])
+		fmt.Println(F.mem.data[progstart:])
 		return nil
 	}
 	wp = F.findWord(s)
 	if wp != 0 {
 		wp += 2
-		inst := F.mem.Fetch(wp)
+		inst, err := F.mem.Fetch(wp)
 		switch {
 		case inst == -3: // "run me"
 			err = F.rpush(F.pc)
@@ -203,30 +213,35 @@ func (F *First) _read() error {
 	return nil
 }
 
-func (F *First) Run(input io.Reader) error {
-	var err error
+func (F *First) Run(input *bufio.Reader) error {
+	var (
+		err error
+		inst, x, y int
+	)
 	F.in = input
 	for err == nil {
-		var x, y int
-		inst := F.mem.Fetch(F.pc)
+		inst, err = F.mem.Fetch(F.pc)
+		// fmt.Print(" ", inst)
 		F.pc++
 		switch inst {
 		case -1: // internal builtin "pushint"
-			F.stack.Push(F.mem.Fetch(F.pc))
+			x, err = F.mem.Fetch(F.pc)
+			F.stack.Push(x)
+			// fmt.Print("=", x)
 			F.pc++
 		case 0: // builtin "halt"
 			fmt.Println(F.pc - 1, "halt")
 			F.pc--
-			return nil
+			return err
 		case 1: // builtin "define", ":"
 			err = F.define()
 		case 2: // builtin "immediate"
-			F.mem.Store(F.mem.Fetch(dep) - 1, -3)
+			F.mem.Store(F.mem.data[dep] - 1, -3)
 		case 3: // builtin "_read"
 			err = F._read()
 		case 4: // builtin "fetch", "@"
 			x, err = F.stack.Pop()
-			y = F.mem.Fetch(x)
+			y, err = F.mem.Fetch(x)
 			F.stack.Push(y)
 		case 5: // builtin "store", "!"
 			x, err = F.stack.Pop()
@@ -260,12 +275,13 @@ func (F *First) Run(input io.Reader) error {
 			}
 		case 12: // builtin "key"
 			var r rune
-			k := bufio.NewReader(F.in)
-			r, _, err = k.ReadRune()
+			//k := bufio.NewReader(F.in)
+			r, _, err = F.in.ReadRune()
+			// fmt.Printf("[%c][%d]\n", r, r)
 			F.stack.Push(int(r))
 		case 13: // builtin "_pick"
 			x, err = F.stack.Pop()
-			y = F.stack.data[x]
+			y = F.stack.data[len(F.stack.data) - x - 1]
 			F.stack.Push(y)
 		default:
 			err = F.rpush(F.pc)
@@ -273,25 +289,39 @@ func (F *First) Run(input io.Reader) error {
 		}
 	}
 	if err == io.EOF {
+		F.pc--
 		return nil
 	}
 	return err
 }
 
+func debugout(first *First) {
+	fmt.Println("Words:", first.strings)
+	fmt.Println("Stack:", first.stack.data)
+	fmt.Println("Rstack:", first.mem.data[rstackstart:first.mem.data[rsp]])
+	memdump, _ := os.Create("memdump")
+	out := bufio.NewWriter(memdump)
+	for _, m := range first.mem.data {
+		fmt.Fprintln(out, m)
+	}
+	out.Flush()
+	memdump.Close()
+}
+
 func main() {
 	first, err := NewFirst()
-	if err != nil {
-		fmt.Println(err)
-	}
-	err = first.Run(strings.NewReader(third))
+
+	defer debugout(first)
+
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	if err = first.Run(bufio.NewReader(os.Stdin)); err != nil {
+	err = first.Run(bufio.NewReader(strings.NewReader(third)))
+	fmt.Println("---")
+	if err != nil {
 		fmt.Println(err)
+	} else if err = first.Run(bufio.NewReader(os.Stdin)); err != nil {
+			fmt.Println(err)
 	}
-//	fmt.Println("Words:", first.strings)
-//	fmt.Println("Stack:", first.stack.data)
-//	fmt.Println(first.mem.data[4096:])
 }

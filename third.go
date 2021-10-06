@@ -1,6 +1,7 @@
 package main
 
 var third string = `
+
 : r 1 exit
 
 : ]
@@ -11,6 +12,7 @@ var third string = `
   ]
 
 : main immediate ]
+
 
 main
 
@@ -88,7 +90,7 @@ main
 
 : tail fromr fromr drop tor ;
 
-: minus 0 swap 0 ;
+: minus 0 swap - ;
 
 : bnot 1 swap - ;
 
@@ -157,4 +159,5 @@ main
 ( now that we've got comments, we can comment the rest of the code
   in a legitimate [self parsing] fashion. Note that you can't
   nest parentheses... )
+
 `
