@@ -61,6 +61,7 @@ main
   exit
 
 : ; immediate
+
   ' exit
   ,
   exit
@@ -143,7 +144,7 @@ main
   key
   ')' =
   not if
-    tail find -)
+    tail find-)
   then
 ;
 
@@ -151,7 +152,7 @@ main
   find-)
 ;
 
-(we should be able to do FORTH-style comments now )
+( we should be able to do FORTH-style comments now )
 
 ( now that we've got comments, we can comment the rest of the code
   in a legitimate [self parsing] fashion. Note that you can't

@@ -90,13 +90,13 @@ func NewFirst() (*First, error) {
 	for i := 0; i < 3; i++ {
 		first.define()
 		first.mem.Store(first.mem.Fetch(dep) - 1, -3)
-		first.Compile(i, 4149)
+		first.Compile(i, 10)
 	}
 	first.in = strings.NewReader(
 		"_read @ ! - * / <0 exit echo key _pick _loop")
 	for i:=3 ; i < 14; i++ {
 		first.define()
-		first.Compile(i, 4149)
+		first.mem.Store(first.mem.Fetch(dep) - 1, i)
 	}
 
 	// 4149 should be a pointer to exit as it is defined here
@@ -104,6 +104,7 @@ func NewFirst() (*First, error) {
 	first.define();
 	first.mem.Store(first.mem.Fetch(dep) -1, -3)
 	first.Compile(3, first.lwp + 3)
+	first.pc = first.lwp + 3
 	return first, nil
 }
 
@@ -121,8 +122,8 @@ func (F *First) rpush(val int) (error) {
 	if F.mem.Fetch(rsp) >= 4096 {
 		return fmt.Errorf("rstack is full")
 	}
-	F.mem.Store(F.mem.Fetch(rsp), val)
 	F.mem.data[rsp]++	
+	F.mem.Store(F.mem.Fetch(rsp), val)
 	return nil
 }
 
@@ -130,8 +131,8 @@ func (F *First) rpop() (int, error) {
 	if F.mem.Fetch(rsp) <= 10 {
 		return 0, fmt.Errorf("rstack is empty")
 	}
-	F.mem.data[rsp]--
 	x := F.mem.Fetch(F.mem.Fetch(rsp))
+	F.mem.data[rsp]--
 	return x, nil
 }
 
@@ -149,7 +150,7 @@ func (F *First) define() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("[%s]", s)
+	fmt.Printf("<%s> ", s)
 	F.strings = append(F.strings, s)
 	id := len(F.strings) - 1
 	F.Compile(F.lwp, id, -2)
@@ -158,20 +159,44 @@ func (F *First) define() error {
 }
 
 func (F *First) _read() error {
-	var s string
-	_, err := fmt.Fscan(F.in, &s)
-	if err != nil {
+	var (
+		s string
+		err error
+		num, wp int
+	)
+	if _, err = fmt.Fscan(F.in, &s); err != nil {
 		return err
 	}
-	fmt.Printf("(%s)", s)
-	wp := F.findWord(s)
+	fmt.Printf("%s ", s)
+	switch s {
+	case "S":
+		fmt.Println(F.stack.data)
+		return nil
+	case "R":
+		fmt.Println(F.mem.data[4:F.mem.Fetch(rsp)])
+		return nil
+	case "M":
+		fmt.Println(F.mem.data[4096:])
+		return nil
+	}
+	wp = F.findWord(s)
 	if wp != 0 {
-		err = F.rpush(F.pc)
-		F.pc = wp + 2
+		wp += 2
+		inst := F.mem.Fetch(wp)
+		switch {
+		case inst == -3: // "run me"
+			err = F.rpush(F.pc)
+			F.pc = wp + 1
+		case inst == -2: // "compile me"
+			F.Compile(wp + 1)
+		case (inst >=0) && (inst <= 13):
+			F.Compile(inst)
+		default:
+			err = fmt.Errorf("invalid code pointer in word %s, %d", s, inst)
+		}
 		return err
 	}
-	num, err := strconv.Atoi(s)
-	if err != nil {
+	if num, err = strconv.Atoi(s); err != nil {
 		return err
 	}
 	F.Compile(-1, num)
@@ -181,7 +206,6 @@ func (F *First) _read() error {
 func (F *First) Run(input io.Reader) error {
 	var err error
 	F.in = input
-	F.pc = F.findWord("_loop") + 3 
 	for err == nil {
 		var x, y int
 		inst := F.mem.Fetch(F.pc)
@@ -190,19 +214,9 @@ func (F *First) Run(input io.Reader) error {
 		case -1: // internal builtin "pushint"
 			F.stack.Push(F.mem.Fetch(F.pc))
 			F.pc++
-		case -2: // internal builtin "compile me"
-			/* "a pointer to the word's data field is
-			 * appended to the dictionary" ????
-			 */
-			F.Compile(F.pc)
-			F.pc, err = F.rpop();
-		case -3: // internal builtin "run me"
-			/* "the word's data field is taken to be
-			 * a stream of pointers to words, and is
-			 * executed" ????
-			 */
 		case 0: // builtin "halt"
 			fmt.Println(F.pc - 1, "halt")
+			F.pc--
 			return nil
 		case 1: // builtin "define", ":"
 			err = F.define()
@@ -238,10 +252,6 @@ func (F *First) Run(input io.Reader) error {
 				F.stack.Push(0)
 			}
 		case 10: // builtin "exit"
-			/* We rpop twice because we need
-			 * to exit "exit" as well
-			 */
-			_, err = F.rpop()
 			F.pc, err = F.rpop()
 		case 11: // builtin "echo"
 			x, err = F.stack.Pop()
@@ -276,11 +286,10 @@ func main() {
 	err = first.Run(strings.NewReader(third))
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		err = first.Run(os.Stdin)
-		if err != nil {
-			fmt.Println(err)
-		}
+		return
+	}
+	if err = first.Run(bufio.NewReader(os.Stdin)); err != nil {
+		fmt.Println(err)
 	}
 //	fmt.Println("Words:", first.strings)
 //	fmt.Println("Stack:", first.stack.data)
