@@ -158,10 +158,10 @@ func (F *First) Compile(vals ...int) {
 func (F *First) define() error {
 	var s string
 	nwp := F.mem.data[dep]
-	_, err := fmt.Fscan(F.in, &s)
-	if err != nil {
+	if _, err := fmt.Fscan(F.in, &s); err != nil {
 		return err
 	}
+	F.in.ReadRune()
 	F.strings = append(F.strings, s)
 	id := len(F.strings) - 1
 	F.Compile(F.lwp, id, -2)
@@ -178,6 +178,7 @@ func (F *First) _read() error {
 	if _, err = fmt.Fscan(F.in, &s); err != nil {
 		return err
 	}
+	F.in.ReadRune()
 	switch s {
 	case "S":
 		fmt.Println(F.stack.data)
