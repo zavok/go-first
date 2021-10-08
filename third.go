@@ -160,4 +160,219 @@ main
   in a legitimate [self parsing] fashion. Note that you can't
   nest parentheses... )
 
+: else immediate
+  ' branch ,
+  here
+  0 ,
+  swap
+  dup here swap -
+  swap !
+;
+
+: over _x! _y! _y _x _y ;
+
+: add
+  _x!
+  _x @
+  +
+  _x !
+;
+
+: allot h add ;
+
+: maybebranch
+  logical
+  r @ @ @
+  computebranch
+  r @ @ +
+  r @ !
+;
+
+: mod _x! _y!
+  _y _y _x / _x *
+  -
+;
+
+: printnum
+  dup
+  10 mod '0' +
+  swap 10 / dup
+  if
+    printnum
+    echo
+  else
+    drop
+    echo
+  then
+;
+
+: .
+  dup 0 <
+  if
+    '-' echo minus
+  then
+  printnum
+  'space' echo
+;
+
+: debugprint dup . cr ;
+
+: _print
+  dup 1 +
+  swap @
+  dup '"' =
+  if
+    drop exit
+  then
+  echo
+  tail _print
+;
+
+: print _print ;
+
+: immprint
+  r @ @
+  print
+  r @ !
+;
+
+: find-"
+  key dup ,
+  '"' =
+  if
+    exit
+  then
+  tail find-"
+;
+
+: " immediate
+  key drop
+  ' immprint ,
+  find-"
+;
+
+: do immediate
+  ' swap ,
+  ' tor ,
+  ' tor ,
+  here
+;
+
+: i r @ 1 - @ ;
+: j r @ 3 - @ ;
+
+: > swap < ;
+: <= 1 + < ;
+: >= swap <= ;
+
+: inci
+  r @ 1 -
+  inc
+  r @ 1 - @
+  r @ 2 - @
+  <=
+  if
+    r @ @ @ r @ @ + r @ ! exit
+  then
+  fromr 1 +
+  fromr drop
+  fromr drop
+  tor
+;
+
+: loop immediate ' inci @ here - , ;
+
+: loopexit
+  fromr drop
+  fromr drop
+  fromr drop
+;
+
+: execute
+  8 !
+  ' exit 9 !
+  8 tor
+;
+
+: :: j
+
+: fix-:: immediate 3 ' :: ! ;
+fix-::
+
+: : immediate :: ] ;
+
+: command
+  here 5 !
+  _read
+  here 5 @
+  = if
+    tail command
+  then
+  here 1 - h !
+  here 5 @
+  = if
+    here @
+    execute
+  else
+    here @
+    here 1 - h !
+  then
+  tail command
+;
+
+: make-immediate
+  here 1 -
+  dup dup
+  h !
+  @ 
+  swap
+  1 -
+  !
+;
+
+: <build immediate
+  make-immediate
+  ' :: ,
+  -1 , ( compile 'pushint' was 2 in original )
+  here 0 ,
+  ' , ,
+;
+
+: does> immediate
+  ' command ,
+  here swap !
+  -2 , (compile run-code primitive, was 2 in original )
+  ' fromr ,
+;
+
+: _dump
+  dup " (" . " , "
+  dup @
+  dup ' exit
+  = if
+    " ;)" cr exit
+  then
+  . " ), "
+  1 +
+  tail _dump
+;
+
+: dump _dump ;
+
+: # . cr ;
+
+: var <build , does> ;
+: constant <build , does> @ ;
+: array <build allot does> + ;
+
+: [ immediate command ;
+: _welcome " Welcome to THIRD.
+Ok.
+" ;
+
+: ; immdeiate ' exit , command exit
+
+[
+
+_welcome
 `
