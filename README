@@ -1,0 +1,5 @@
+go-first implements forth-like "FIRST" interpreter, as it is described in
+IOCCC entry named "buzzard.2" but in go language.
+
+You can find original at http://www.ioccc.org/years.html#1992
+
